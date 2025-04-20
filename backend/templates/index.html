@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>文字識別系統</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .video-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .video-box {
+            flex: 1;
+            background-color: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .video-box h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        video, canvas {
+            width: 100%;
+            border-radius: 4px;
+            background-color: black;  /* 設置黑色背景 */
+        }
+        #result {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 100px;
+        }
+        #result h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        #recognizedText {
+            font-size: 24px;
+            color: #333;
+            margin: 10px 0;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>文字識別系統</h1>
+        
+        <div class="controls">
+            <button id="startBtn">開始識別</button>
+            <button id="stopBtn" disabled>停止識別</button>
+        </div>
+
+        <div class="video-container">
+            <div class="video-box">
+                <h3>原始畫面</h3>
+                <video id="video" autoplay playsinline></video>
+            </div>
+            <div class="video-box">
+                <h3>處理結果</h3>
+                <canvas id="resultCanvas"></canvas>
+            </div>
+        </div>
+
+        <div id="result">
+            <h2>識別結果</h2>
+            <div id="recognizedText"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const video = document.getElementById('video');
+        const resultCanvas = document.getElementById('resultCanvas');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const recognizedText = document.getElementById('recognizedText');
+        let stream = null;
+        let socket = null;
+        let isProcessing = false;
+
+        // 初始化Socket.IO連接
+        function initSocket() {
+            socket = io('http://localhost:5001');
+            
+            socket.on('connect', () => {
+                console.log('已連接到服務器');
+            });
+
+            socket.on('recognized_text', (data) => {
+                recognizedText.textContent = data.text;
+                
+                // 顯示處理後的圖像和文字框
+                if (data.processed_image && data.boxes_image) {
+                    const processedImg = new Image();
+                    const boxesImg = new Image();
+                    
+                    processedImg.onload = () => {
+                        boxesImg.onload = () => {
+                            // 設置畫布大小
+                            resultCanvas.width = processedImg.width;
+                            resultCanvas.height = processedImg.height;
+                            
+                            const ctx = resultCanvas.getContext('2d');
+                            
+                            // 先繪製處理後的圖像
+                            ctx.drawImage(processedImg, 0, 0);
+                            
+                            // 再繪製文字框
+                            ctx.drawImage(boxesImg, 0, 0);
+                        };
+                        boxesImg.src = 'data:image/jpeg;base64,' + data.boxes_image;
+                    };
+                    processedImg.src = 'data:image/jpeg;base64,' + data.processed_image;
+                }
+            });
+        }
+
+        // 開始視頻流
+        async function startVideo() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                isProcessing = true;
+                processFrame();
+            } catch (err) {
+                console.error('無法訪問攝像頭:', err);
+            }
+        }
+
+        // 停止視頻流
+        function stopVideo() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                isProcessing = false;
+            }
+        }
+
+        // 處理視頻幀
+        function processFrame() {
+            if (!isProcessing) return;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            const frameData = canvas.toDataURL('image/jpeg', 0.8);
+            socket.emit('frame', frameData);
+            
+            requestAnimationFrame(processFrame);
+        }
+
+        // 初始化
+        initSocket();
+        startBtn.addEventListener('click', startVideo);
+        stopBtn.addEventListener('click', stopVideo);
+    </script>
+</body>
+</html> 
