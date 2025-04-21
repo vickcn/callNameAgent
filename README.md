@@ -33,7 +33,20 @@ sudo apt-get install tesseract-ocr
 sudo apt-get install tesseract-ocr-chi-tra
 ```
 
-3. 安裝前端依賴：
+3. 安裝FFmpeg（用於影像處理）：
+```bash
+# macOS
+brew install ffmpeg
+
+# Ubuntu
+sudo apt-get update
+sudo apt-get install ffmpeg
+
+# Windows（使用Chocolatey）
+choco install ffmpeg
+```
+
+4. 安裝前端相依套件：
 ```bash
 cd frontend
 npm install
@@ -54,26 +67,26 @@ npm start
 
 3. 在瀏覽器中訪問：`http://localhost:3000`
 
-## 項目結構
+## 專案結構
 
 ```
 .
-├── backend/            # 後端代碼
-│   ├── app.py         # 主應用程序
+├── backend/            # 後端程式碼
+│   ├── app.py         # 主應用程式
 │   └── requirements.txt
-├── frontend/          # 前端代碼
-│   ├── src/          # 源代碼
+├── frontend/          # 前端程式碼
+│   ├── src/          # 原始碼
 │   └── package.json
 └── README.md
 ```
 
 ## 貢獻指南
 
-1. Fork 本項目
-2. 創建新的分支
+1. Fork 本專案
+2. 建立新的分支
 3. 提交更改
 4. 發起 Pull Request
 
-## 許可證
+## 授權條款
 
-MIT License
+MIT License 
