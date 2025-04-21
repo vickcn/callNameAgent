@@ -1,23 +1,23 @@
-# 繁體字識別系統
+# 繁體字辨識系統
 
-這是一個基於OpenCV和Tesseract OCR的繁體字識別系統，可以實時識別攝像頭中的繁體字。
+這是一個基於OpenCV和Tesseract OCR的繁體字辨識系統，可以即時辨識攝影機中的繁體字。
 
 ## 功能特點
 
-- 實時繁體字識別
+- 即時繁體字辨識
 - 特徵分析（筆畫密度、結構複雜度、方向梯度等）
-- 語音播報識別結果
-- 圖像預處理優化
+- 語音播報辨識結果
+- 圖像預處理最佳化
 
 ## 技術棧
 
 - 後端：Python, Flask, OpenCV, Tesseract OCR
 - 前端：React, TypeScript
-- 實時通信：Socket.IO
+- 即時通訊：Socket.IO
 
 ## 安裝說明
 
-1. 安裝Python依賴：
+1. 安裝Python相依套件：
 ```bash
 pip install -r requirements.txt
 ```
@@ -26,11 +26,11 @@ pip install -r requirements.txt
 ```bash
 # macOS
 brew install tesseract
-brew install tesseract-lang  # 安裝語言包
+brew install tesseract-lang
 
 # Ubuntu
 sudo apt-get install tesseract-ocr
-sudo apt-get install tesseract-ocr-chi-tra  # 安裝繁體中文語言包
+sudo apt-get install tesseract-ocr-chi-tra
 ```
 
 3. 安裝前端依賴：
