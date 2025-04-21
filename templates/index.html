@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>文字識別系統</title>
+    <title>文字辨識系統</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -35,7 +35,7 @@
         video, canvas {
             width: 100%;
             border-radius: 4px;
-            background-color: black;  /* 設置黑色背景 */
+            background-color: black;  /* 設定黑色背景 */
         }
         #result {
             background-color: white;
@@ -78,11 +78,11 @@
 </head>
 <body>
     <div class="container">
-        <h1>文字識別系統</h1>
+        <h1>文字辨識系統</h1>
         
         <div class="controls">
-            <button id="startBtn">開始識別</button>
-            <button id="stopBtn" disabled>停止識別</button>
+            <button id="startBtn">開始辨識</button>
+            <button id="stopBtn" disabled>停止辨識</button>
         </div>
 
         <div class="video-container">
@@ -97,7 +97,7 @@
         </div>
 
         <div id="result">
-            <h2>識別結果</h2>
+            <h2>辨識結果</h2>
             <div id="recognizedText"></div>
         </div>
     </div>
@@ -113,12 +113,12 @@
         let socket = null;
         let isProcessing = false;
 
-        // 初始化Socket.IO連接
+        // 初始化Socket.IO連線
         function initSocket() {
             socket = io('http://localhost:5001');
             
             socket.on('connect', () => {
-                console.log('已連接到服務器');
+                console.log('已連線到伺服器');
             });
 
             socket.on('recognized_text', (data) => {
@@ -131,7 +131,7 @@
                     
                     processedImg.onload = () => {
                         boxesImg.onload = () => {
-                            // 設置畫布大小
+                            // 設定畫布大小
                             resultCanvas.width = processedImg.width;
                             resultCanvas.height = processedImg.height;
                             
@@ -150,7 +150,7 @@
             });
         }
 
-        // 開始視頻流
+        // 開始視訊流
         async function startVideo() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -160,11 +160,11 @@
                 isProcessing = true;
                 processFrame();
             } catch (err) {
-                console.error('無法訪問攝像頭:', err);
+                console.error('無法存取攝影機:', err);
             }
         }
 
-        // 停止視頻流
+        // 停止視訊流
         function stopVideo() {
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
