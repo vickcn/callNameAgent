@@ -152,27 +152,27 @@ def analyze_chinese_features(region):
     stroke_thickness = np.mean(distance_transform)
     logger.debug(f"筆畫粗細: {stroke_thickness:.4f}")
     
-    # 綜合判斷是否為繁體字
+    # 綜合判斷是否為繁體字（調整閾值）
     is_chinese = (
-        # 筆畫密度在合理範圍
-        0.2 <= stroke_density <= 0.7 and
-        # 結構複雜度足夠高
-        complexity > 0.1 and
-        # 梯度密度適中
-        0.1 <= gradient_density <= 0.5 and
-        # 筆畫方向分布較均勻
-        angle_variance > 100 and
-        # 筆畫粗細適中
-        1.0 <= stroke_thickness <= 3.0
+        # 筆畫密度在合理範圍（降低下限，因為可能有較稀疏的字）
+        0.15 <= stroke_density <= 0.8 and
+        # 結構複雜度足夠高（降低閾值）
+        complexity > 0.08 and
+        # 梯度密度適中（擴大範圍）
+        0.08 <= gradient_density <= 0.6 and
+        # 筆畫方向分布較均勻（降低閾值）
+        angle_variance > 50 and
+        # 筆畫粗細適中（擴大範圍）
+        0.8 <= stroke_thickness <= 4.0
     )
     
     # 記錄每個特徵的判斷結果
     logger.debug("特徵判斷結果:")
-    logger.debug(f"筆畫密度判斷: {'通過' if 0.2 <= stroke_density <= 0.7 else '不通過'}")
-    logger.debug(f"結構複雜度判斷: {'通過' if complexity > 0.1 else '不通過'}")
-    logger.debug(f"梯度密度判斷: {'通過' if 0.1 <= gradient_density <= 0.5 else '不通過'}")
-    logger.debug(f"方向分布判斷: {'通過' if angle_variance > 100 else '不通過'}")
-    logger.debug(f"筆畫粗細判斷: {'通過' if 1.0 <= stroke_thickness <= 3.0 else '不通過'}")
+    logger.debug(f"筆畫密度判斷: {stroke_density:.4f}||{'通過' if 0.15 <= stroke_density <= 0.8 else '不通過'}")
+    logger.debug(f"結構複雜度判斷: {complexity:.4f}||{'通過' if complexity > 0.08 else '不通過'}")
+    logger.debug(f"梯度密度判斷: {gradient_density:.4f}||{'通過' if 0.08 <= gradient_density <= 0.6 else '不通過'}")
+    logger.debug(f"方向分布判斷: {angle_variance:.4f}||{'通過' if angle_variance > 50 else '不通過'}")
+    logger.debug(f"筆畫粗細判斷: {stroke_thickness:.4f}||{'通過' if 0.8 <= stroke_thickness <= 4.0 else '不通過'}")
     logger.debug(f"最終判斷結果: {'是繁體字' if is_chinese else '不是繁體字'}")
     
     return is_chinese, {
@@ -185,124 +185,44 @@ def analyze_chinese_features(region):
 
 def process_frame(frame_data):
     """處理圖像幀，進行OCR識別"""
-    logger.info("開始處理新的圖像幀")
     try:
-        # 解碼base64圖像數據
-        encoded_data = frame_data.split(',')[1]
-        nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
+        logger.info("開始處理圖像幀")
+        # 解碼 base64 圖像數據
+        image_data = base64.b64decode(frame_data.split(',')[1])
+        nparr = np.frombuffer(image_data, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        # 圖像預處理
-        # 1. 調整圖像大小（保持寬高比）
-        height, width = frame.shape[:2]
-        max_dimension = 800
-        scale = max_dimension / max(height, width)
-        if scale < 1:
-            frame = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-        
-        # 2. 轉換為灰度圖
+        # 轉換為灰度圖
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # 3. 應用高斯模糊去噪
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        
-        # 4. 自適應閾值處理
-        binary = cv2.adaptiveThreshold(
-            blurred,
-            255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY,
-            21,
-            10
-        )
-        
-        # 5. 腐蝕和膨脹操作以去除噪點
-        kernel = np.ones((3, 3), np.uint8)
-        binary = cv2.erode(binary, kernel, iterations=1)
-        binary = cv2.dilate(binary, kernel, iterations=1)
-        
-        # 6. 對比度增強
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-        enhanced = clahe.apply(binary)
-        
-        # 7. 使用輪廓檢測來識別文字區域
-        contours, _ = cv2.findContours(enhanced, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        logger.debug(f"找到 {len(contours)} 個候選區域")
-        
-        # 8. 創建文字區域掩碼
-        text_mask = np.zeros_like(enhanced)
-        chinese_regions = 0
-        
-        # 創建兩個結果圖像：一個用於顯示灰圖，一個用於顯示文字框
-        gray_result = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
-        box_result = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
-        
-        for i, contour in enumerate(contours):
-            x, y, w, h = cv2.boundingRect(contour)
-            aspect_ratio = float(w)/h
-            
-            # 基本幾何特徵過濾
-            if not (0.1 < aspect_ratio < 10 and w > 10 and h > 10):
-                logger.debug(f"區域 {i}: 幾何特徵不符合要求 (寬高比: {aspect_ratio:.2f}, 寬: {w}, 高: {h})")
-                continue
-                
-            # 提取候選區域
-            roi = enhanced[y:y+h, x:x+w]
-            
-            # 分析繁體字特徵
-            is_chinese, features = analyze_chinese_features(roi)
-            
-            # 根據是否為繁體字選擇不同的顏色
-            color = (0, 255, 0) if is_chinese else (0, 0, 255)  # 綠色表示繁體字，紅色表示非繁體字
-            
-            # 在灰圖上繪製矩形框
-            cv2.rectangle(gray_result, (x, y), (x+w, y+h), color, 2)
-            
-            # 在文字框圖像上繪製矩形框
-            cv2.rectangle(box_result, (x, y), (x+w, y+h), color, 2)
-            
-            # 在框上方顯示特徵數值
-            text_y = y - 10 if y > 20 else y + h + 20  # 如果框太靠上，就在下方顯示文字
-            
-            # 準備特徵數值文本
-            feature_text = f"密度:{features['stroke_density']:.2f} 複雜度:{features['complexity']:.2f}"
-            cv2.putText(box_result, feature_text, (x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-            
-            # 在第二行顯示其他特徵
-            feature_text2 = f"梯度:{features['gradient_density']:.2f} 粗細:{features['stroke_thickness']:.2f}"
-            cv2.putText(box_result, feature_text2, (x, text_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-            
-            if is_chinese:
-                cv2.rectangle(text_mask, (x, y), (x+w, y+h), 255, -1)
-                chinese_regions += 1
-                logger.debug(f"區域 {i}: 識別為繁體字區域，特徵: {features}")
-            else:
-                logger.debug(f"區域 {i}: 不是繁體字區域")
-        
-        logger.info(f"共識別出 {chinese_regions} 個繁體字區域")
-        
-        # 9. 應用掩碼
-        enhanced = cv2.bitwise_and(enhanced, enhanced, mask=text_mask)
-        
-        # OCR識別
+        # 使用 Tesseract 進行文字識別
+        logger.info("開始OCR識別")
         custom_config = r'--oem 1 --psm 6 -l chi_tra --dpi 300'
-        text = pytesseract.image_to_string(enhanced, config=custom_config)
+        text = pytesseract.image_to_string(gray, config=custom_config)
+        logger.info(f"OCR識別結果: {text}")
         
-        # 提取中文字符
-        chinese_text = extract_chinese(text)
-        logger.info(f"最終識別結果: {chinese_text}")
+        # 獲取文字框信息
+        boxes = pytesseract.image_to_boxes(gray, config=custom_config)
+        logger.info(f"文字框信息: {boxes}")
         
-        # 將兩個結果圖像合併為一個
-        combined_result = np.hstack((gray_result, box_result))
+        # 在圖像上繪製文字框
+        h = frame.shape[0]
+        for b in boxes.splitlines():
+            b = b.split(' ')
+            if len(b) >= 6:  # 確保有足夠的坐標信息
+                x, y, w, h_box = int(b[1]), h - int(b[2]), int(b[3]), int(b[4])
+                cv2.rectangle(frame, (x, y), (w, y - h_box), (0, 255, 0), 2)
         
-        # 將處理後的圖像轉換為base64
-        _, buffer = cv2.imencode('.jpg', combined_result)
+        # 將處理後的圖像轉換為 base64
+        _, buffer = cv2.imencode('.jpg', frame)
         processed_image = base64.b64encode(buffer).decode('utf-8')
         
-        return {
-            'text': chinese_text,
+        result = {
+            'text': text,
             'processed_image': processed_image
         }
+        logger.info(f"返回結果: {result}")
+        return result
     except Exception as e:
         logger.error(f"處理圖像幀時發生錯誤: {str(e)}")
         return {
