@@ -14,11 +14,11 @@ from queue import Queue, Empty
 import json
 from ian_toolkit import LOGger
 
-# 配置日志
+# 配置日誌
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# 語音任務隊列
+# 語音任務佇列
 speech_queue = Queue()
 speech_lock = threading.Lock()
 speech_thread = None
@@ -26,11 +26,11 @@ speech_thread = None
 # temp_engine.setProperty('rate', 150)
 # temp_engine.setProperty('volume', 0.9)
 def speech_worker():
-    """語音工作線程"""
-    logger.info("語音工作線程已啟動")
+    """語音工作執行緒"""
+    logger.info("語音工作執行緒已啟動")
     while True:
         try:
-            # 從隊列中獲取文本，設置超時時間
+            # 從佇列中獲取文本，設定超時時間
             try:
                 text = speech_queue.get(timeout=1)  # 1秒超時
                 if text is None:  # 結束信號
@@ -39,7 +39,7 @@ def speech_worker():
                 continue  # 如果超時，繼續等待
                 
             logger.info(f"開始朗讀文本: {text}")
-            logger.info(f"當前語音隊列大小: {speech_queue.qsize()}")
+            logger.info(f"當前語音佇列大小: {speech_queue.qsize()}")
             
             try:
                 # 每次使用新的引擎實例
@@ -61,31 +61,31 @@ def speech_worker():
             time.sleep(0.1)
             
         except Exception as e:
-            logger.error(f"語音工作線程錯誤: {str(e)}")
+            logger.error(f"語音工作執行緒錯誤: {str(e)}")
             time.sleep(1)  # 發生錯誤時等待一段時間再繼續
 
 def start_speech_thread():
-    """啟動語音工作線程"""
+    """啟動語音工作執行緒"""
     global speech_thread
     if speech_thread is None or not speech_thread.is_alive():
         speech_thread = threading.Thread(target=speech_worker, daemon=True)
         speech_thread.start()
-        logger.info("已啟動語音工作線程")
+        logger.info("已啟動語音工作執行緒")
 
 def speak_text(text):
-    """將文本加入語音隊列"""
+    """將文本加入語音佇列"""
     if not text:
         return
     try:
-        speech_queue.put(text, block=False)  # 不阻塞，如果隊列滿了就丟棄
-        logger.info(f"已將文本加入隊列，當前隊列大小: {speech_queue.qsize()}")
+        speech_queue.put(text, block=False)  # 不阻塞，如果佇列滿了就丟棄
+        logger.info(f"已將文本加入佇列，當前佇列大小: {speech_queue.qsize()}")
     except Queue.Full:
-        logger.warning("語音隊列已滿，丟棄新文本")
+        logger.warning("語音佇列已滿，丟棄新文本")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 
-# 使用轮询传输
+# 使用輪詢傳輸
 socketio = SocketIO(app, 
                    cors_allowed_origins="*",
                    max_http_buffer_size=1 * 1024 * 1024,
@@ -93,31 +93,31 @@ socketio = SocketIO(app,
                    ping_interval=25,
                    async_mode='threading')
 
-# 添加连接管理
+# 添加連線管理
 connected_clients = set()
-frame_queue = Queue(maxsize=2)  # 限制队列大小
+frame_queue = Queue(maxsize=2)  # 限制佇列大小
 
 @socketio.on('connect')
 def handle_connect():
-    logger.info('客户端已连接')
+    logger.info('用戶端已連線')
     connected_clients.add(request.sid)
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    logger.info('客户端已断开连接')
+    logger.info('用戶端已斷開連線')
     connected_clients.discard(request.sid)
 
 @socketio.on_error()
 def error_handler(e):
-    logger.error(f'Socket.IO错误: {str(e)}')
+    logger.error(f'Socket.IO錯誤: {str(e)}')
 
 def extract_chinese(text):
     """提取中文字符"""
-    logger.debug(f"提取中文字符，输入文本: {text}")
+    logger.debug(f"提取中文字符，輸入文本: {text}")
     pattern = re.compile(r'[\u4e00-\u9fff]+')
     result = pattern.findall(text)
     extracted = ''.join(result)
-    logger.debug(f"提取结果: {extracted}")
+    logger.debug(f"提取結果: {extracted}")
     return extracted
 
 def analyze_chinese_features(region):
@@ -184,7 +184,7 @@ def analyze_chinese_features(region):
     }
 
 def process_frame(frame_data):
-    """處理圖像幀，進行OCR識別"""
+    """處理圖像幀，進行OCR辨識"""
     try:
         logger.info("開始處理圖像幀")
         # 解碼 base64 圖像數據
@@ -195,11 +195,11 @@ def process_frame(frame_data):
         # 轉換為灰度圖
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # 使用 Tesseract 進行文字識別
-        logger.info("開始OCR識別")
+        # 使用 Tesseract 進行文字辨識
+        logger.info("開始OCR辨識")
         custom_config = r'--oem 1 --psm 6 -l chi_tra --dpi 300'
         text = pytesseract.image_to_string(gray, config=custom_config)
-        logger.info(f"OCR識別結果: {text}")
+        logger.info(f"OCR辨識結果: {text}")
         
         # 獲取文字框信息
         boxes = pytesseract.image_to_boxes(gray, config=custom_config)
@@ -239,7 +239,7 @@ def process_frame_worker():
                 try:
                     result = process_frame(frame_data)
                     
-                    # 如果有識別到文字，發送結果並加入語音隊列
+                    # 如果有識別到文字，發送結果並加入語音佇列
                     if result['text']:
                         socketio.emit('recognized_text', result)
                         speak_text(result['text'])
@@ -249,7 +249,7 @@ def process_frame_worker():
         except Exception as e:
             logger.error(f"工作線程錯誤: {str(e)}")
 
-# 在程序啟動時啟動語音工作線程
+# 在程序啟動時啟動語音工作執行緒
 start_speech_thread()
 
 # 启动工作线程
@@ -263,7 +263,7 @@ def handle_frame(frame_data):
         if frame_queue.full():
             frame_queue.get()  # 如果队列已满，移除最旧的帧
         frame_queue.put(frame_data)
-        logger.debug("已將幀數據加入隊列")
+        logger.debug("已將幀數據加入佇列")
         return {'status': 'success'}  # 发送确认响应
     except Exception as e:
         logger.error(f"處理視頻幀時發生錯誤: {str(e)}")
